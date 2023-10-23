@@ -4,7 +4,7 @@ from json import dumps
 
 app = Flask(__name__)
 
-def to_geometry(input) :
+def to_geometry(input):
 
     output = input.split('},{')
     output[0], output[1] = output[0] + '}', '{' + output[1]
@@ -24,7 +24,7 @@ def tryCatch(f, features) :
 @app.after_request
 def add_cors_headers(response):
     # Allow requests from any origin
-    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Origin'] = 'http://antoinehalin.fr'
 
     # Allow specific HTTP methods
     response.headers['Access-Control-Allow-Methods'] = 'GET'
@@ -37,6 +37,10 @@ def hello_world():
 
 @app.route('/shapely/get_predicates/<list_of_features>', methods=["GET"])
 def get_shapely_predicates(list_of_features):
+    if not isinstance(list_of_features, str):
+        raise Exception("error: Input is not a string")
+
+    
     features = to_geometry(list_of_features)
     return dumps({
         "isContain": tryCatch(shp.contains, features),
