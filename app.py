@@ -1,13 +1,22 @@
 from flask import Flask
+import psycopg2
 import shapely as shp
-from json import dumps
+import json
 
 app = Flask(__name__)
 
-def to_geometry(input):
+with open("config.json", "r") as config_file:
+    config = json.load(config_file)
 
+def string_to_list_of_2_json(input):
     output = input.split('},{')
     output[0], output[1] = output[0] + '}', '{' + output[1]
+    return output
+
+
+def to_geometry(input):
+
+    output =  string_to_list_of_2_json(input)
     output = [shp.from_geojson(i) for i in output]
 
     return output
@@ -39,10 +48,8 @@ def hello_world():
 def get_shapely_predicates(list_of_features):
     if not isinstance(list_of_features, str):
         raise Exception("error: Input is not a string")
-
-    
     features = to_geometry(list_of_features)
-    return dumps({
+    return json.dumps({
         "isContain": tryCatch(shp.contains, features),
         "isCross": tryCatch(shp.crosses, features),
         "isEqual": tryCatch(shp.equals, features),
@@ -50,3 +57,30 @@ def get_shapely_predicates(list_of_features):
         "isOverlap": tryCatch(shp.overlaps, features),
         "isTouch": tryCatch(shp.touches, features),
         "isWithin": tryCatch(shp.within, features)})
+
+@app.route('/postgis/get_predicates/<list_of_features>', methods=["GET"])
+def get_postgis_predicates(list_of_features):
+
+    if not isinstance(list_of_features, str):
+        raise Exception("error: Input is not a string")
+    
+    connection = psycopg2.connect(
+        host=config["db_host"],
+        database=config["db_database"],
+        user=config["db_user"],
+        password=config["db_password"]
+    )
+
+    cursor = connection.cursor()
+    features = string_to_list_of_2_json(list_of_features)
+    print(features)
+    cursor.callproc('my_predicate_check', (features[0], features[1]))
+    result = cursor.fetchone()
+    cursor.close()
+    connection.close()
+
+
+    if result is not None:
+        return result[0]
+
+    return "it failed"
